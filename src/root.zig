@@ -18,10 +18,28 @@ const ChannelError = error{
 pub fn Channel(comptime T: type, comptime capacity: usize) type {
     return struct {
         allocator: std.mem.Allocator,
+
+        /// WARNING: private field, external modifications will cause unspecified behavior
+        /// Message buffer. Once sent message should not be ever changed.
         items: []T,
+
+        // TODO handle channel close
+        /// WARNING: private field, external modifications will cause unspecified behavior
+        /// Indicates the channel state.
         isOpen: bool,
 
+        // TODO consider replacing usize to u64: if a message is produced every 1ms, it will last ~49 days for 32-bit architecture
+        // u64 translates to 584 years even if a message is produced every 1ns
+        // TODO rename fields according to zig naming convention (snake case)
+        // TODO prepend private fields with _
+        // TODO snake case for variables
+
+        /// WARNING: private field, external modifications will cause unspecified behavior
+        /// Holds a message ID of last consumed item
         headPtr: ?usize = null,
+
+        /// WARNING: private field, external modifications will cause unspecified behavior
+        /// Holds a message ID of last sent item
         tailPtr: ?usize = null,
 
         const Self = @This();
@@ -64,10 +82,25 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
             if (self.size() == capacity) {
                 return ChannelError.BufferOverflow;
             }
+
             const newTailPtr = if (self.tailPtr) |oldTailPtr| oldTailPtr + 1 else 0;
-            self.items[newTailPtr] = item;
+            self.items[calcIdx(newTailPtr)] = item;
             self.tailPtr = newTailPtr;
             return .{ .msgId = newTailPtr };
+        }
+
+        pub fn popOrNull(self: *Self) ?T {
+            if (self.headPtr == self.tailPtr) {
+                return null;
+            }
+
+            const newHeadPtr = if (self.headPtr) |h| h + 1 else 0;
+            self.headPtr = newHeadPtr;
+            return self.items[calcIdx(newHeadPtr)];
+        }
+
+        fn calcIdx(msgId: usize) usize {
+            return msgId % capacity;
         }
     };
 }
@@ -99,4 +132,31 @@ test "produce above capacity should return error" {
     const result = channel.send(1);
 
     try testing.expectError(ChannelError.BufferOverflow, result);
+}
+
+test "popOrNull should dequeue an item if available or return null if not" {
+    var channel = try Channel(u8, 10).init(testing.allocator);
+    defer channel.deinit();
+    _ = try channel.send(1);
+
+    var r = channel.popOrNull();
+    try testing.expectEqual(1, r);
+
+    r = channel.popOrNull();
+    try testing.expectEqual(null, r);
+}
+
+test "pop releases the buffer slot, making it available for rewrite" {
+    var channel = try Channel(u8, 10).init(testing.allocator);
+    defer channel.deinit();
+    var i: u8 = 0;
+    while (i < 10) : (i += 1) {
+        _ = try channel.send(1);
+    }
+
+    _ = channel.popOrNull();
+
+    const r = try channel.send(1);
+    try testing.expectEqual(10, r.msgId);
+    try testing.expectEqual(10, channel.size());
 }
