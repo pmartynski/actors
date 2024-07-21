@@ -1,26 +1,22 @@
 const std = @import("std");
 const testing = std.testing;
 
+/// Represents a receipt for a sent message.
 const Receipt = struct {
     msgId: usize,
 };
 
-const SendError = error{
+/// Represents an error that can occur when operating on the channel.
+const ChannelError = error{
     BufferOverflow,
 };
 
+/// Creates a channel type with the specified element type and capacity.
+///
+/// The channel is a fixed-size buffer that allows sending and receiving messages of type `T`.
+/// The capacity determines the maximum number of messages that can be stored in the channel.
 pub fn Channel(comptime T: type, comptime capacity: usize) type {
     return struct {
-        // Create a rolling buffer:
-        // - fixed size array of delcared capacity
-        // - items must be immutable after dequeue
-        // - stored on the heap?
-        // - two indexes (refered as IDs), top and bottom (or three for ack)
-        //   + consPtr
-        //   + sendPtr
-        //   + ackPtr
-        // - capacity declared in the begining
-        // - size = sendPtr - consPtr or sendPtr - ackPtr, to prevent from overwriting items under processing
         allocator: std.mem.Allocator,
         items: []T,
         isOpen: bool,
@@ -30,6 +26,10 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
 
         const Self = @This();
 
+        /// Initializes a new channel with the specified allocator.
+        ///
+        /// The allocator is used to allocate memory for the channel's internal buffer.
+        /// Returns an error if memory allocation fails.
         pub fn init(allocator: std.mem.Allocator) !Self {
             return .{
                 .allocator = allocator,
@@ -38,10 +38,12 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
             };
         }
 
+        /// Deinitializes the channel and frees the allocated memory.
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.items);
         }
 
+        /// Returns the number of messages currently stored in the channel.
         pub fn size(self: Self) usize {
             if (self.headPtr == null and self.tailPtr == null) {
                 return 0;
@@ -54,9 +56,13 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
             return self.tailPtr.? + 1;
         }
 
-        pub fn send(self: *Self, item: T) SendError!Receipt {
+        /// Sends a message through the channel.
+        ///
+        /// Returns a receipt for the sent message if successful.
+        /// Returns a `SendError.BufferOverflow` error if the channel is full.
+        pub fn send(self: *Self, item: T) ChannelError!Receipt {
             if (self.size() == capacity) {
-                return SendError.BufferOverflow;
+                return ChannelError.BufferOverflow;
             }
             const newTailPtr = if (self.tailPtr) |oldTailPtr| oldTailPtr + 1 else 0;
             self.items[newTailPtr] = item;
@@ -92,5 +98,5 @@ test "produce above capacity should return error" {
 
     const result = channel.send(1);
 
-    try testing.expectError(SendError.BufferOverflow, result);
+    try testing.expectError(ChannelError.BufferOverflow, result);
 }
