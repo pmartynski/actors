@@ -3,7 +3,7 @@ const testing = std.testing;
 
 /// Represents a receipt for a sent message.
 const Receipt = struct {
-    msg_id: usize,
+    msg_id: u64,
 };
 
 /// Represents an error that can occur when operating on the channel.
@@ -15,7 +15,7 @@ const ChannelError = error{
 ///
 /// The channel is a fixed-size buffer that allows sending and receiving messages of type `T`.
 /// The capacity determines the maximum number of messages that can be stored in the channel.
-pub fn Channel(comptime T: type, comptime capacity: usize) type {
+pub fn Channel(comptime T: type, comptime capacity: u64) type {
     return struct {
         allocator: std.mem.Allocator,
 
@@ -23,21 +23,18 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
         /// Message buffer. Once sent message should not be ever changed.
         items: []T,
 
-        // TODO handle channel close
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Indicates the channel state.
+        // TODO handle channel close
         is_open: bool,
-
-        // TODO consider replacing usize to u64: if a message is produced every 1ms, it will last ~49 days for 32-bit architecture
-        // u64 translates to 584 years even if a message is produced every 1ns
 
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Holds a message ID of last consumed item
-        head_id: ?usize = null,
+        head_id: ?u64 = null,
 
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Holds a message ID of last sent item
-        tail_id: ?usize = null,
+        tail_id: ?u64 = null,
 
         const Self = @This();
 
@@ -59,7 +56,7 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
         }
 
         /// Returns the number of messages currently stored in the channel.
-        pub fn size(self: Self) usize {
+        pub fn size(self: Self) u64 {
             if (self.head_id == null and self.tail_id == null) {
                 return 0;
             }
@@ -96,7 +93,7 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
             return self.items[calcIdx(new_head_id)];
         }
 
-        fn calcIdx(msgId: usize) usize {
+        fn calcIdx(msgId: u64) u64 {
             return msgId % capacity;
         }
     };
