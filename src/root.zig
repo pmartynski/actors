@@ -3,7 +3,7 @@ const testing = std.testing;
 
 /// Represents a receipt for a sent message.
 const Receipt = struct {
-    msgId: usize,
+    msg_id: usize,
 };
 
 /// Represents an error that can occur when operating on the channel.
@@ -26,21 +26,18 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
         // TODO handle channel close
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Indicates the channel state.
-        isOpen: bool,
+        is_open: bool,
 
         // TODO consider replacing usize to u64: if a message is produced every 1ms, it will last ~49 days for 32-bit architecture
         // u64 translates to 584 years even if a message is produced every 1ns
-        // TODO rename fields according to zig naming convention (snake case)
-        // TODO prepend private fields with _
-        // TODO snake case for variables
 
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Holds a message ID of last consumed item
-        headPtr: ?usize = null,
+        head_id: ?usize = null,
 
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Holds a message ID of last sent item
-        tailPtr: ?usize = null,
+        tail_id: ?usize = null,
 
         const Self = @This();
 
@@ -52,7 +49,7 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
             return .{
                 .allocator = allocator,
                 .items = try allocator.alloc(T, capacity),
-                .isOpen = true,
+                .is_open = true,
             };
         }
 
@@ -63,15 +60,15 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
 
         /// Returns the number of messages currently stored in the channel.
         pub fn size(self: Self) usize {
-            if (self.headPtr == null and self.tailPtr == null) {
+            if (self.head_id == null and self.tail_id == null) {
                 return 0;
             }
 
-            if (self.headPtr) |h| {
-                return self.tailPtr.? - h;
+            if (self.head_id) |h| {
+                return self.tail_id.? - h;
             }
 
-            return self.tailPtr.? + 1;
+            return self.tail_id.? + 1;
         }
 
         /// Sends a message through the channel.
@@ -83,20 +80,20 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
                 return ChannelError.BufferOverflow;
             }
 
-            const newTailPtr = if (self.tailPtr) |oldTailPtr| oldTailPtr + 1 else 0;
-            self.items[calcIdx(newTailPtr)] = item;
-            self.tailPtr = newTailPtr;
-            return .{ .msgId = newTailPtr };
+            const new_tail_id = if (self.tail_id) |oldTailPtr| oldTailPtr + 1 else 0;
+            self.items[calcIdx(new_tail_id)] = item;
+            self.tail_id = new_tail_id;
+            return .{ .msg_id = new_tail_id };
         }
 
         pub fn popOrNull(self: *Self) ?T {
-            if (self.headPtr == self.tailPtr) {
+            if (self.head_id == self.tail_id) {
                 return null;
             }
 
-            const newHeadPtr = if (self.headPtr) |h| h + 1 else 0;
-            self.headPtr = newHeadPtr;
-            return self.items[calcIdx(newHeadPtr)];
+            const new_head_id = if (self.head_id) |h| h + 1 else 0;
+            self.head_id = new_head_id;
+            return self.items[calcIdx(new_head_id)];
         }
 
         fn calcIdx(msgId: usize) usize {
@@ -108,9 +105,9 @@ pub fn Channel(comptime T: type, comptime capacity: usize) type {
 test "init check" {
     var channel = try Channel(u8, 10).init(testing.allocator);
     defer channel.deinit();
-    try testing.expect(channel.isOpen);
-    try testing.expectEqual(channel.headPtr, null);
-    try testing.expectEqual(channel.tailPtr, null);
+    try testing.expect(channel.is_open);
+    try testing.expectEqual(channel.head_id, null);
+    try testing.expectEqual(channel.tail_id, null);
 }
 
 test "produce up to capacity should pass" {
@@ -119,7 +116,7 @@ test "produce up to capacity should pass" {
 
     inline for (0..10) |n| {
         const r = try channel.send(@intCast(n));
-        try testing.expectEqual(n, r.msgId);
+        try testing.expectEqual(n, r.msg_id);
         try testing.expectEqual(n + 1, channel.size());
     }
 }
@@ -157,6 +154,6 @@ test "pop releases the buffer slot, making it available for rewrite" {
     _ = channel.popOrNull();
 
     const r = try channel.send(1);
-    try testing.expectEqual(10, r.msgId);
+    try testing.expectEqual(10, r.msg_id);
     try testing.expectEqual(10, channel.size());
 }
