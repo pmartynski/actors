@@ -1,4 +1,4 @@
-// TODO expose publisher and consumer interfaces: check if able to replace @ptrCast and @alignCast with @as (a.k.a. The New Way)
+// TODO expose consumer interface
 
 const std = @import("std");
 const testing = std.testing;
@@ -25,6 +25,9 @@ pub const ChannelError = error{
 /// The capacity determines the maximum number of messages that can be stored in the channel.
 pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
     return struct {
+        const Self = @This();
+        const Producer = ChannelProducer(T);
+
         allocator: std.mem.Allocator,
 
         /// WARNING: private field, external modifications will cause unspecified behavior
@@ -32,7 +35,7 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
         items: []T,
 
         /// WARNING: private field, external modifications will cause unspecified behavior
-        /// Indicates the channel state.
+        /// Indicates the channel state. Once closed, shouldn't be open!
         is_open: bool,
 
         /// WARNING: private field, external modifications will cause unspecified behavior
@@ -42,8 +45,6 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
         /// WARNING: private field, external modifications will cause unspecified behavior
         /// Holds a message ID of last sent item
         tail_id: ?u64 = null,
-
-        const Self = @This();
 
         /// Initializes a new channel with the specified allocator.
         ///
@@ -94,6 +95,24 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             return .{ .msg_id = new_tail_id };
         }
 
+        fn sendFn(ptr: *anyopaque, item: T) ChannelError!Receipt {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+            return self.send(item);
+        }
+
+        /// Removes and returns the next item from the channel, or returns `null` if the channel is empty.
+        ///
+        /// If the channel is empty, this function returns `null`. Otherwise, it removes the next item from
+        /// the channel and returns it.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// const item = channel.popOrNull();
+        /// if (item) |m| {
+        ///     // Process the item
+        /// }
+        /// ```
         pub fn popOrNull(self: *Self) ?T {
             if (self.head_id == self.tail_id) {
                 return null;
@@ -104,8 +123,25 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             return self.items[calcIdx(new_head_id)];
         }
 
+        /// Closes the channel.
+        ///
+        /// This function closes the channel, preventing further sending of messages.
         pub fn close(self: *Self) void {
-            self.*.is_open = false;
+            self.is_open = false;
+        }
+
+        fn closeFn(ptr: *anyopaque) void {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+            self.close();
+        }
+
+        /// Creates a producer interface instance for the channel.
+        pub fn producer(self: *Self) Producer {
+            return .{
+                .ptr = self,
+                .sendFn = Self.sendFn,
+                .closeFn = Self.closeFn,
+            };
         }
 
         fn calcIdx(msgId: u64) u64 {
@@ -182,4 +218,16 @@ test "closed channel should error on publishing when closed but should allow for
 
     const pr = channel.popOrNull();
     try testing.expect(pr != null);
+}
+
+test "producer should be able to produce messages and close the channel" {
+    var channel = try SimpleChannel(u8, 10).init(testing.allocator);
+    defer channel.deinit();
+    var producer = channel.producer();
+    _ = try producer.send(1);
+
+    try testing.expectEqual(1, channel.size());
+
+    producer.close();
+    try testing.expect(!channel.is_open);
 }
