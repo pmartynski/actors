@@ -3,8 +3,8 @@ const testing = std.testing;
 
 const channel_interface = @import("channel_interface.zig");
 const Receipt = channel_interface.Receipt;
-const ChannelProducer = channel_interface.ChannelProducer;
-const ChannelConsumer = channel_interface.ChannelConsumer;
+pub const ChannelWriter = channel_interface.ChannelWriter;
+pub const ChannelReader = channel_interface.ChannelReader;
 
 /// Represents an error that can occur when operating on the channel.
 pub const ChannelError = error{
@@ -25,8 +25,8 @@ pub const ChannelError = error{
 pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
     return struct {
         const Self = @This();
-        const Producer = ChannelProducer(T);
-        const Consumer = ChannelConsumer(T);
+        const SelfWriter = ChannelWriter(T);
+        const SelfReader = ChannelReader(T);
 
         allocator: std.mem.Allocator,
 
@@ -140,8 +140,8 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             self.close();
         }
 
-        /// Creates a producer interface instance for the channel.
-        pub fn producer(self: *Self) Producer {
+        /// Creates a writer interface instance for the channel.
+        pub fn channelWriter(self: *Self) SelfWriter {
             return .{
                 .ptr = self,
                 .sendFn = Self.sendFn,
@@ -150,7 +150,7 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
         }
 
         /// Creates a consumer interface instance for the channel.
-        pub fn consumer(self: *Self) Consumer {
+        pub fn channelReader(self: *Self) SelfReader {
             return .{
                 .ptr = self,
                 .popOrNullFn = Self.popOrNullFn,
@@ -234,28 +234,28 @@ test "closed channel should error on publishing when closed but should allow for
     try testing.expect(pr != null);
 }
 
-test "producer should be able to produce messages and close the channel" {
+test "channel writer should be able to produce messages and close the channel" {
     var channel = try SimpleChannel(u8, 10).init(testing.allocator);
     defer channel.deinit();
-    var producer = channel.producer();
-    _ = try producer.send(1);
+    var ch_writer = channel.channelWriter();
+    _ = try ch_writer.send(1);
 
     try testing.expectEqual(1, channel.size());
 
-    producer.close();
+    ch_writer.close();
     try testing.expect(!channel.is_open);
 }
 
-test "consumer should be able to consume messages and close the channel" {
+test "channel reader should be able to consume messages and close the channel" {
     var channel = try SimpleChannel(u8, 10).init(testing.allocator);
     defer channel.deinit();
 
     _ = try channel.send(1);
 
-    var consumer = channel.consumer();
-    const r = consumer.popOrNull();
+    var ch_reader = channel.channelReader();
+    const r = ch_reader.popOrNull();
     try testing.expectEqual(1, r);
 
-    consumer.close();
+    ch_reader.close();
     try testing.expect(!channel.is_open);
 }

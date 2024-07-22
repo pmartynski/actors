@@ -3,11 +3,11 @@ pub const Receipt = struct {
     msg_id: u64,
 };
 
-/// Creates a channel producer for the specified type `T`.
+/// Creates a channel writer for the specified type `T`.
 ///
 /// The channel producer allows sending messages of type `T` through the channel.
 ///
-pub fn ChannelProducer(comptime T: type) type {
+pub fn ChannelWriter(comptime T: type) type {
     return struct {
         const Self = @This();
 
@@ -31,11 +31,11 @@ pub fn ChannelProducer(comptime T: type) type {
     };
 }
 
-/// Creates a channel consumer for the specified type `T`.
+/// Creates a channel reader for the specified type `T`.
 ///
 /// The channel consumer allows receiving messages of type `T` from the channel.
 ///
-pub fn ChannelConsumer(comptime T: type) type {
+pub fn ChannelReader(comptime T: type) type {
     return struct {
         const Self = @This();
 
