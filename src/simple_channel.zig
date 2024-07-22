@@ -3,10 +3,9 @@
 const std = @import("std");
 const testing = std.testing;
 
-/// Represents a receipt for a sent message.
-pub const Receipt = struct {
-    msg_id: u64,
-};
+const channel_interface = @import("channel_interface.zig");
+const Receipt = channel_interface.Receipt;
+const ChannelProducer = channel_interface.ChannelProducer;
 
 /// Represents an error that can occur when operating on the channel.
 pub const ChannelError = error{
@@ -95,11 +94,7 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             return .{ .msg_id = new_tail_id };
         }
 
-        pub fn popOrNull(self: *Self) ChannelError!?T {
-            if (!self.is_open) {
-                return ChannelError.ChannelClosed;
-            }
-
+        pub fn popOrNull(self: *Self) ?T {
             if (self.head_id == self.tail_id) {
                 return null;
             }
@@ -153,10 +148,10 @@ test "popOrNull should dequeue an item if available or return null if not" {
     defer channel.deinit();
     _ = try channel.send(1);
 
-    var r = try channel.popOrNull();
+    var r = channel.popOrNull();
     try testing.expectEqual(1, r);
 
-    r = try channel.popOrNull();
+    r = channel.popOrNull();
     try testing.expectEqual(null, r);
 }
 
@@ -168,14 +163,14 @@ test "pop releases the buffer slot, making it available for rewrite" {
         _ = try channel.send(1);
     }
 
-    _ = try channel.popOrNull();
+    _ = channel.popOrNull();
 
     const r = try channel.send(1);
     try testing.expectEqual(10, r.msg_id);
     try testing.expectEqual(10, channel.size());
 }
 
-test "closed channel should error on publishing or consuming when closed" {
+test "closed channel should error on publishing when closed but should allow for draining the channel" {
     var channel = try SimpleChannel(u8, 10).init(testing.allocator);
     defer channel.deinit();
     _ = try channel.send(1);
@@ -186,5 +181,5 @@ test "closed channel should error on publishing or consuming when closed" {
     try testing.expectError(ChannelError.ChannelClosed, sr);
 
     const pr = channel.popOrNull();
-    try testing.expectError(ChannelError.ChannelClosed, pr);
+    try testing.expect(pr != null);
 }
