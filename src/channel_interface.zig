@@ -30,3 +30,42 @@ pub fn ChannelProducer(comptime T: type) type {
         }
     };
 }
+
+/// Creates a channel consumer for the specified type `T`.
+///
+/// The channel consumer allows receiving messages of type `T` from the channel.
+///
+pub fn ChannelConsumer(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        ptr: *anyopaque,
+        popOrNullFn: *const fn (self: *anyopaque) ?T,
+        closeFn: *const fn (self: *anyopaque) void,
+
+        /// Removes and returns the next item from the channel, or returns `null` if the channel is empty.
+        ///
+        /// If the channel is empty, this function returns `null`. Otherwise, it removes the next item from
+        /// the channel and returns it.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// const item = channel.popOrNull();
+        /// if (item) |m| {
+        ///     // Process the item
+        /// }
+        /// ```
+        pub fn popOrNull(self: Self) ?T {
+            return self.popOrNullFn(self.ptr);
+        }
+
+        /// Closes the channel.
+        ///
+        /// This function is used to close the channel.
+        ///
+        pub fn close(self: Self) void {
+            self.closeFn(self.ptr);
+        }
+    };
+}

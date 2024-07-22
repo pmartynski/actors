@@ -1,11 +1,10 @@
-// TODO expose consumer interface
-
 const std = @import("std");
 const testing = std.testing;
 
 const channel_interface = @import("channel_interface.zig");
 const Receipt = channel_interface.Receipt;
 const ChannelProducer = channel_interface.ChannelProducer;
+const ChannelConsumer = channel_interface.ChannelConsumer;
 
 /// Represents an error that can occur when operating on the channel.
 pub const ChannelError = error{
@@ -27,6 +26,7 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
     return struct {
         const Self = @This();
         const Producer = ChannelProducer(T);
+        const Consumer = ChannelConsumer(T);
 
         allocator: std.mem.Allocator,
 
@@ -123,6 +123,11 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             return self.items[calcIdx(new_head_id)];
         }
 
+        fn popOrNullFn(ptr: *anyopaque) ?T {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+            return self.popOrNull();
+        }
+
         /// Closes the channel.
         ///
         /// This function closes the channel, preventing further sending of messages.
@@ -140,6 +145,15 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             return .{
                 .ptr = self,
                 .sendFn = Self.sendFn,
+                .closeFn = Self.closeFn,
+            };
+        }
+
+        /// Creates a consumer interface instance for the channel.
+        pub fn consumer(self: *Self) Consumer {
+            return .{
+                .ptr = self,
+                .popOrNullFn = Self.popOrNullFn,
                 .closeFn = Self.closeFn,
             };
         }
@@ -229,5 +243,19 @@ test "producer should be able to produce messages and close the channel" {
     try testing.expectEqual(1, channel.size());
 
     producer.close();
+    try testing.expect(!channel.is_open);
+}
+
+test "consumer should be able to consume messages and close the channel" {
+    var channel = try SimpleChannel(u8, 10).init(testing.allocator);
+    defer channel.deinit();
+
+    _ = try channel.send(1);
+
+    var consumer = channel.consumer();
+    const r = consumer.popOrNull();
+    try testing.expectEqual(1, r);
+
+    consumer.close();
     try testing.expect(!channel.is_open);
 }
