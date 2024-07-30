@@ -40,7 +40,7 @@ pub fn ChannelReader(comptime T: type) type {
         const Self = @This();
 
         ptr: *anyopaque,
-        popOrNullFn: *const fn (self: *anyopaque) ?T,
+        popOrNullFn: *const fn (self: *anyopaque) ?*const T,
         closeFn: *const fn (self: *anyopaque) void,
 
         /// Removes and returns the next item from the channel, or returns `null` if the channel is empty.
@@ -56,7 +56,7 @@ pub fn ChannelReader(comptime T: type) type {
         ///     // Process the item
         /// }
         /// ```
-        pub fn popOrNull(self: Self) ?T {
+        pub fn popOrNull(self: Self) ?*const T {
             return self.popOrNullFn(self.ptr);
         }
 

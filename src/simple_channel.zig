@@ -113,17 +113,17 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
         ///     // Process the item
         /// }
         /// ```
-        pub fn popOrNull(self: *Self) ?T {
+        pub fn popOrNull(self: *Self) ?*const T {
             if (self.head_id == self.tail_id) {
                 return null;
             }
 
             const new_head_id = if (self.head_id) |h| h + 1 else 0;
             self.head_id = new_head_id;
-            return self.items[calcIdx(new_head_id)];
+            return &self.items[calcIdx(new_head_id)];
         }
 
-        fn popOrNullFn(ptr: *anyopaque) ?T {
+        fn popOrNullFn(ptr: *anyopaque) ?*const T {
             const self: *Self = @ptrCast(@alignCast(ptr));
             return self.popOrNull();
         }
@@ -199,7 +199,7 @@ test "popOrNull should dequeue an item if available or return null if not" {
     _ = try channel.send(1);
 
     var r = channel.popOrNull();
-    try testing.expectEqual(1, r);
+    try testing.expectEqual(1, r.?.*);
 
     r = channel.popOrNull();
     try testing.expectEqual(null, r);
@@ -254,7 +254,7 @@ test "channel reader should be able to consume messages and close the channel" {
 
     var ch_reader = channel.channelReader();
     const r = ch_reader.popOrNull();
-    try testing.expectEqual(1, r);
+    try testing.expectEqual(1, r.?.*);
 
     ch_reader.close();
     try testing.expect(!channel.is_open);
