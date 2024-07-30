@@ -140,6 +140,11 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
             self.close();
         }
 
+        fn isOpenFn(ptr: *anyopaque) bool {
+            const self: *Self = @ptrCast(@alignCast(ptr));
+            return self.is_open;
+        }
+
         /// Creates a writer interface instance for the channel.
         pub fn channelWriter(self: *Self) SelfWriter {
             return .{
@@ -155,6 +160,7 @@ pub fn SimpleChannel(comptime T: type, comptime capacity: u64) type {
                 .ptr = self,
                 .popOrNullFn = Self.popOrNullFn,
                 .closeFn = Self.closeFn,
+                .isOpenFn = Self.isOpenFn,
             };
         }
 

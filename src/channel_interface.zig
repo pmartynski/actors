@@ -42,6 +42,7 @@ pub fn ChannelReader(comptime T: type) type {
         ptr: *anyopaque,
         popOrNullFn: *const fn (self: *anyopaque) ?*const T,
         closeFn: *const fn (self: *anyopaque) void,
+        isOpenFn: *const fn (self: *anyopaque) bool,
 
         /// Removes and returns the next item from the channel, or returns `null` if the channel is empty.
         ///
@@ -66,6 +67,10 @@ pub fn ChannelReader(comptime T: type) type {
         ///
         pub fn close(self: Self) void {
             self.closeFn(self.ptr);
+        }
+
+        pub fn isOpen(self: Self) bool {
+            return self.isOpenFn(self.ptr);
         }
     };
 }
