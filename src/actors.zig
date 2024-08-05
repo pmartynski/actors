@@ -1,22 +1,25 @@
 const std = @import("std");
 const testing = std.testing;
 
-const c = @import("consumer.zig");
-const s = @import("simple_channel.zig");
+const c = @import("consumers.zig");
+const s = @import("channels.zig");
 
+// TODO: actor outbox
+// TODO: docs
 pub fn Actor(comptime S: type, comptime T: type) type {
     return struct {
+        name: []const u8,
         state: *S,
-        channel: *s.SimpleChannel(T, 128),
+        inboxChannel: *s.SimpleChannel(T, 128),
         consumer: c.ChannelConsumer(T, S),
         thread: ?std.Thread,
         allocator: std.mem.Allocator,
 
         pub fn inbox(self: *@This()) s.ChannelWriter(T) {
-            return self.*.channel.channelWriter();
+            return self.*.inboxChannel.channelWriter();
         }
 
-        pub fn init(allocator: std.mem.Allocator, init_state: *S, handler: c.HandlerFn(T, S)) !@This() {
+        pub fn init(allocator: std.mem.Allocator, name: []const u8, init_state: *S, handler: c.HandlerFn(T, S)) !@This() {
             const channel = try allocator.create(s.SimpleChannel(T, 128));
             channel.* = try s.SimpleChannel(T, 128).init(allocator);
             const consumer = c.ChannelConsumer(T, S).create(
@@ -25,11 +28,12 @@ pub fn Actor(comptime S: type, comptime T: type) type {
                 init_state,
             );
             return @This(){
-                .channel = channel,
+                .allocator = allocator,
+                .inboxChannel = channel,
                 .consumer = consumer,
+                .name = name,
                 .state = init_state,
                 .thread = null,
-                .allocator = allocator,
             };
         }
 
@@ -38,8 +42,8 @@ pub fn Actor(comptime S: type, comptime T: type) type {
         }
 
         pub fn deinit(self: *@This()) void {
-            self.channel.deinit();
-            self.allocator.destroy(self.channel);
+            self.inboxChannel.deinit();
+            self.allocator.destroy(self.inboxChannel);
 
             const ts = @typeInfo(S);
 
@@ -69,7 +73,12 @@ test "INT actor" {
 
     const initialState = try testing.allocator.create(State);
     initialState.* = State.init(testing.allocator);
-    var a = try Actor(State, Msg).init(testing.allocator, initialState, H.handle);
+    var a = try Actor(State, Msg).init(
+        testing.allocator,
+        "test_actor",
+        initialState,
+        H.handle,
+    );
     defer a.deinit();
     try a.run();
 
@@ -83,4 +92,6 @@ test "INT actor" {
 
     const actual = initialState.*.get(4);
     try testing.expectEqual(16, actual);
+
+    try testing.expectEqual("test_actor", a.name);
 }

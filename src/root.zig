@@ -1,19 +1,22 @@
 const std = @import("std");
-const testing = std.testing;
 
-const channel_interface = @import("channel_interface.zig");
-pub const Receipt = channel_interface.Receipt;
-pub const ChannelWriter = channel_interface.ChannelWriter;
-pub const ChannelReader = channel_interface.ChannelReader;
+const libs = struct {
+    usingnamespace @import("channels.zig");
+    usingnamespace @import("consumers.zig");
+    usingnamespace @import("actors.zig");
+};
 
-const simple_channel = @import("simple_channel.zig");
-pub const SimpleChannel = simple_channel.SimpleChannel;
-pub const ChannelError = simple_channel.ChannelError;
+pub const Receipt = libs.Receipt;
+pub const ChannelWriter = libs.ChannelWriter;
+pub const ChannelReader = libs.ChannelReader;
+pub const SimpleChannel = libs.SimpleChannel;
+pub const ChannelError = libs.ChannelError;
 
-const consumer = @import("consumer.zig");
-pub const ChannelConsumer = consumer.ChannelConsumer;
-pub const HandlerFn = consumer.HandlerFn;
+pub const ChannelConsumer = libs.ChannelConsumer;
+pub const HandlerFn = libs.HandlerFn;
+
+pub const Actor = libs.Actor;
 
 test {
-    testing.refAllDecls(@This());
+    std.testing.refAllDecls(@This());
 }

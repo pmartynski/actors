@@ -2,7 +2,10 @@ const std = @import("std");
 const testing = std.testing;
 const builtin = @import("builtin");
 
-const ChannelReader = @import("./channel_interface.zig").ChannelReader;
+// TODO: docs
+const libs = struct {
+    usingnamespace @import("channels.zig");
+};
 
 pub fn HandlerFn(comptime T: type, comptime S: type) type {
     return *const fn (msg: *const T, state: *S) void;
@@ -10,10 +13,10 @@ pub fn HandlerFn(comptime T: type, comptime S: type) type {
 
 pub fn ChannelConsumer(comptime T: type, comptime S: type) type {
     return struct {
-        channel: ChannelReader(T),
+        channel: libs.ChannelReader(T),
         handler: HandlerFn(T, S),
         state: *S,
-        pub fn create(channel: ChannelReader(T), handler: HandlerFn(T, S), init_state: *S) @This() {
+        pub fn create(channel: libs.ChannelReader(T), handler: HandlerFn(T, S), init_state: *S) @This() {
             return .{
                 .channel = channel,
                 .handler = handler,
@@ -45,10 +48,8 @@ pub fn ChannelConsumer(comptime T: type, comptime S: type) type {
     };
 }
 
-const SimpleChannel = @import("simple_channel.zig").SimpleChannel(u8, 10);
-
 test "INT consumer should be able to drain the channel" {
-    var ch = try SimpleChannel.init(testing.allocator);
+    var ch = try libs.SimpleChannel(u8, 10).init(testing.allocator);
     defer ch.deinit();
 
     const State = struct {
