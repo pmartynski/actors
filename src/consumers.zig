@@ -2,20 +2,48 @@ const std = @import("std");
 const testing = std.testing;
 const builtin = @import("builtin");
 
-// TODO: docs
 const libs = struct {
     usingnamespace @import("channels.zig");
 };
 
+/// Defines a handler function type for consuming messages of type `T` with state of type `S`.
 pub fn HandlerFn(comptime T: type, comptime S: type) type {
     return *const fn (msg: *const T, state: *S) void;
 }
 
+/// Creates a ChannelConsumer for consuming messages from a channel.
+///
+/// # Parameters
+/// - `T`: The type of messages in the channel.
+/// - `S`: The type of the internal state.
+///
+/// The `ChannelConsumer` struct represents a consumer that reads messages from a channel and
+/// processes them using a handler function. It maintains an internal state that can be accessed
+/// and modified by the handler function.
+///
+/// Example usage:
+/// ```zig
+/// const consumer = ChannelConsumer(u8, MyState).create(channel, handler, &state);
+/// const thread = try consumer.run();
+/// // ...
+/// consumer.close();
+/// thread.join();
+/// ```
 pub fn ChannelConsumer(comptime T: type, comptime S: type) type {
     return struct {
         channel: libs.ChannelReader(T),
         handler: HandlerFn(T, S),
         state: *S,
+
+        /// Creates a new consumer with the specified channel, handler function, and initial state.
+        ///
+        /// # Parameters
+        /// - `channel`: The channel to read messages from.
+        /// - `handler`: The function that will handle the messages.
+        /// - `init_state`: A pointer to the initial state of the consumer.
+        ///
+        /// # Returns
+        /// A new consumer instance.
         pub fn create(channel: libs.ChannelReader(T), handler: HandlerFn(T, S), init_state: *S) @This() {
             return .{
                 .channel = channel,
@@ -24,10 +52,16 @@ pub fn ChannelConsumer(comptime T: type, comptime S: type) type {
             };
         }
 
+        /// Closes the consumer.
+        ///
+        /// This function closes the consumer by closing the associated channel.
         pub fn close(self: *@This()) void {
             self.channel.close();
         }
 
+        /// Spawns a consumer thread.
+        ///
+        /// Returns the newly spawned thread.
         pub fn run(self: *@This()) !std.Thread {
             return std.Thread.spawn(.{}, consume, .{self});
         }
